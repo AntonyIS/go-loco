@@ -49,6 +49,6 @@ func (l *locomotiveService) UpdateLoco(loco *Locomotive) (*Locomotive, error) {
 }
 
 // Delete loco
-func (l *locomotiveService) DeleteLoco(loco_id string) error {
-	return l.locoRepo.DeleteLoco(loco_id)
+func (l *locomotiveService) DeleteLoco(loco *Locomotive) error {
+	return l.locoRepo.DeleteLoco(loco)
 }
