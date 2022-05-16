@@ -7,8 +7,7 @@ import (
 )
 
 type redisRepository struct {
-	Client    *elasticache.ElastiCache
-	Tablename string
+	Client *elasticache.ElastiCache
 }
 
 func newRedisClient() *elasticache.ElastiCache {
@@ -21,7 +20,7 @@ func newRedisClient() *elasticache.ElastiCache {
 	return client
 }
 
-func NewRedisReposistory(tablename string) (app.LocomotiveRepository, error) {
+func NewRedisReposistory() (app.LocomotiveRepository, error) {
 	repo := &redisRepository{
 		Client: newRedisClient(),
 	}
