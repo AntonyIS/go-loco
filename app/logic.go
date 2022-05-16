@@ -13,6 +13,7 @@ import (
 var (
 	ErrorLocomotiveNotFound = errors.New("locomotive not found")
 	ErrorInvalidLocomotive  = errors.New("locomotive is invalid")
+	ErrorInternalServer     = errors.New("internal server error")
 )
 
 type locomotiveService struct {
@@ -30,7 +31,8 @@ func (l *locomotiveService) CreateLoco(loco *Locomotive) (*Locomotive, error) {
 
 	// Check if for errors from validating locomotive
 	if err := validate.Validate(loco); err != nil {
-		return nil, errs.Wrap(ErrorInvalidLocomotive, "service.Locomotive.Create")
+
+		return nil, errs.Wrap(ErrorInvalidLocomotive, "service.Locomotive.CreateLoco")
 	}
 	// Define loco id by concatenating shortID twice, just so to make it more unique
 	loco.LocoID = fmt.Sprintf("%s%s", shortid.MustGenerate(), shortid.MustGenerate())
@@ -49,6 +51,10 @@ func (l *locomotiveService) UpdateLoco(loco *Locomotive) (*Locomotive, error) {
 }
 
 // Delete loco
-func (l *locomotiveService) DeleteLoco(loco *Locomotive) error {
-	return l.locoRepo.DeleteLoco(loco)
+func (l *locomotiveService) DeleteLoco(loco_id string) error {
+	return l.locoRepo.DeleteLoco(loco_id)
+}
+
+func (l *locomotiveService) GetAllLoco() (*[]Locomotive, error) {
+	return l.locoRepo.GetAllLoco()
 }

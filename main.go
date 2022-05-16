@@ -24,8 +24,11 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	r.Get("/{loco_id}", handler.Get)
-	// r.Post("/", handler.Post)
+	r.Get("/api/v1/get/{loco_id}", handler.GetLoco)
+	r.Get("/api/v1/all", handler.GetAllLoco)
+	r.Post("/api/v1/add", handler.PostLoco)
+	r.Put("/api/v1/update/{loco_id}", handler.UpdateLoco)
+	r.Delete("/api/v1/delete/{loco_id}", handler.DeleteLoco)
 
 	errs := make(chan error, 2)
 	go func() {
@@ -51,14 +54,9 @@ func httpPort() string {
 }
 
 func chooseRepo() app.LocomotiveRepository {
-	switch os.Getenv("DYNAMODB_TABLE") {
-	case "redis":
-		table := os.Getenv("DYNAMODB_TABLE")
-		repo, err := ddr.NewDynamoDBReposistory(table)
-		if err != nil {
-			log.Fatal(err)
-		}
-		return repo
+	repo, err := ddr.NewDynamoDBReposistory("loco")
+	if err != nil {
+		log.Fatal(err)
 	}
-	return nil
+	return repo
 }

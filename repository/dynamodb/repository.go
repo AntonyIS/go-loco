@@ -1,101 +1,138 @@
 package dynamodb
 
 import (
-	"context"
+	"fmt"
+	"log"
 
 	"github.com/AntonyIS/go-loco/app"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/pkg/errors"
 )
 
 type dynamodbRepository struct {
-	Client    *dynamodb.Client
+	Client    *dynamodb.DynamoDB
 	Tablename string
+}
+
+func newDynamoDBClient() *dynamodb.DynamoDB {
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+	// Create DynamoDB client
+	client := dynamodb.New(sess)
+	return client
+
 }
 
 func NewDynamoDBReposistory(tablename string) (app.LocomotiveRepository, error) {
 	repo := &dynamodbRepository{
 		Tablename: tablename,
 	}
+	repo.Client = newDynamoDBClient()
 	return repo, nil
 }
 
 func (d *dynamodbRepository) CreateLoco(loco *app.Locomotive) (*app.Locomotive, error) {
-	item, err := attributevalue.MarshalMap(*loco)
+	av, err := dynamodbattribute.MarshalMap(*loco)
 	if err != nil {
-		return nil, errors.Wrap(err, "repository.Redirect.CreateLoco")
+		return nil, errors.Wrap(err, "repository.Locomotive.CreateLoco")
 	}
-	_, err = d.Client.PutItem(
-		context.TODO(),
-		&dynamodb.PutItemInput{
-			TableName: aws.String(d.Tablename),
-			Item:      item,
-		})
+	input := &dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(d.Tablename),
+	}
+	_, err = d.Client.PutItem(input)
 	if err != nil {
-		return nil, errors.Wrap(err, "repository.Redirect.CreateLoco")
-
+		log.Fatalf("Got error calling PutItem: %s", err)
 	}
-
 	return loco, nil
 }
 
 func (d *dynamodbRepository) GetLoco(loco_id string) (*app.Locomotive, error) {
-	loco := &app.Locomotive{LocoID: loco_id}
-	response, err := d.Client.GetItem(context.TODO(), &dynamodb.GetItemInput{
-		Key:       loco.GetKey(),
+	result, err := d.Client.GetItem(&dynamodb.GetItemInput{
 		TableName: aws.String(d.Tablename),
+		Key: map[string]*dynamodb.AttributeValue{
+			"loco_id": {
+				S: aws.String(loco_id),
+			},
+		},
 	})
+
 	if err != nil {
-		return nil, errors.Wrap(err, "repository.Redirect.GetLoco")
-	} else {
-		err = attributevalue.UnmarshalMap(response.Item, &response)
-		if err != nil {
-			return nil, errors.Wrap(err, "repository.Redirect.GetLoco")
-		}
+		log.Fatalf("Got error calling GetItem: %s", err)
 	}
-	return loco, err
+	if result.Item == nil {
+		return nil, errors.Wrap(app.ErrorLocomotiveNotFound, "repository.Locomotive.GetLoco")
+	}
+	loco := app.Locomotive{}
+	err = dynamodbattribute.UnmarshalMap(result.Item, &loco)
+	if err != nil {
+		return nil, errors.Wrap(app.ErrorInternalServer, "repository.Locomotive.GetLoco")
+	}
+	return &loco, err
 }
 
 func (d *dynamodbRepository) UpdateLoco(loco *app.Locomotive) (*app.Locomotive, error) {
-	var response *dynamodb.UpdateItemOutput
-	var attributeMap map[string]map[string]interface{}
-	update := expression.Set(expression.Name("name"), expression.Value(loco.Name))
-	update.Set(expression.Name("image_url"), expression.Value(loco.ImageURL))
-	update.Set(expression.Name("description"), expression.Value(loco.Description))
-	expr, err := expression.NewBuilder().WithUpdate(update).Build()
-	if err != nil {
-		return nil, errors.Wrap(err, "repository.Redirect.GetLoco")
-	} else {
-		response, err = d.Client.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
-			TableName: aws.String(d.Tablename),
-			Key:       loco.GetKey(),
-			// ExpressionAttributeNames:  expr.Names(),
-			// ExpressionAttributeValues: expr.Values(),
-			UpdateExpression: expr.Update(),
-			ReturnValues:     types.ReturnValueUpdatedNew,
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "repository.Redirect.GetLoco")
-		} else {
-			err = attributevalue.UnmarshalMap(response.Attributes, &attributeMap)
-			if err != nil {
-				return nil, errors.Wrap(err, "repository.Redirect.GetLoco")
-			}
-		}
+	input := &dynamodb.UpdateItemInput{
+		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+			":n": {
+				S: aws.String(loco.LocoName),
+			},
+			":i": {
+				S: aws.String(loco.ImageURL),
+			},
+			":d": {
+				S: aws.String(loco.Description),
+			},
+		},
+		TableName: aws.String(d.Tablename),
+		Key: map[string]*dynamodb.AttributeValue{
+			"loco_id": {
+				S: aws.String(loco.LocoID),
+			},
+		},
+		ReturnValues:     aws.String("UPDATED_NEW"),
+		UpdateExpression: aws.String("set loco_name = :n,image_url = :i,description = :d"),
 	}
-	return loco, err
+	te, err := d.Client.UpdateItem(input)
+	fmt.Println(te)
+	if err != nil {
+		log.Fatalf("Got error calling UpdateItem: %s", err)
+	}
+	return loco, nil
 }
 
-func (d *dynamodbRepository) DeleteLoco(loco *app.Locomotive) error {
-	_, err := d.Client.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
-		TableName: aws.String(d.Tablename), Key: loco.GetKey(),
-	})
-	if err != nil {
-		return errors.Wrap(err, "repository.Redirect.Store")
+func (d *dynamodbRepository) DeleteLoco(loco_id string) error {
+	input := &dynamodb.DeleteItemInput{
+		Key: map[string]*dynamodb.AttributeValue{
+			"loco_id": {
+				S: aws.String(loco_id),
+			},
+		},
+		TableName: aws.String(d.Tablename),
 	}
+	_, err := d.Client.DeleteItem(input)
+	if err != nil {
+		log.Fatalf("Got error calling DeleteItem: %s", err)
+	}
+
 	return nil
+
+}
+func (d *dynamodbRepository) GetAllLoco() (*[]app.Locomotive, error) {
+	locos := &[]app.Locomotive{}
+	params := &dynamodb.ScanInput{
+		TableName: aws.String(d.Tablename),
+	}
+	// Make the DynamoDB Query API call
+	result, err := d.Client.Scan(params)
+	if err != nil {
+		log.Fatalf("Query API call failed: %s", err)
+	}
+	dynamodbattribute.UnmarshalListOfMaps(result.Items, locos)
+
+	return locos, nil
 }

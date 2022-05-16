@@ -7,9 +7,9 @@ import (
 
 type Locomotive struct {
 	LocoID      string `json:"loco_id" dynamodbav:"loco_id"`
-	Name        string `json:"name" dynamodbav:"name"`
-	ImageURL    string `json:"image_url" dynamodbav:"image_url" validate:"empty=false & format=url`
-	Description string `json:"description dynamodbav:"description""`
+	LocoName    string `json:"loco_name" dynamodbav:"loco_name"`
+	ImageURL    string `json:"image_url" dynamodbav:"image_url" validate:"empty=false & format=url"`
+	Description string `json:"description" dynamodbav:"description"`
 	CreatedAT   int64  `json:"created_at" dynamodbav:"created_at"`
 }
 
